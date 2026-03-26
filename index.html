@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Ứng dụng đường đi Euler - Hệ thống Điều hành Xe Quét Đường</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="assets/logo_1.png" type="image/png">
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+</head>
+
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="logo-title">
+        <div class="logo-circle">♻️</div>
+        <div>
+          <h1>Ứng dụng đường đi Euler</h1>
+          <p>Mô phỏng và trực quan hóa lộ trình tối ưu cho xe quét đường</p>
+        </div>
+      </div>
+      <div class="logo-right" style="display:flex; align-items:center; gap:12px;">
+        <div class="view-mode-badge" id="system-status-indicator">Hệ thống Trừu tượng</div>
+        <img src="assets/logo_2.png" alt="Đại Nam University" style="height: 38px; object-fit: contain; filter: brightness(0) invert(1); opacity: 0.9;">
+      </div>
+    </header>
+
+    <main class="app-main">
+      <!-- PANEL TRÁI: NHẬP LIỆU & THIẾT LẬP -->
+      <section class="panel panel-left">
+        <h2>🌐 THIẾT LẬP MẠNG LƯỚI</h2>
+
+        <div class="panel-block">
+          <h3>1. Nhập cấu trúc đường phố</h3>
+          <div class="bulk-input" style="margin-bottom: 16px;">
+            <label for="bulk-edges">Cú pháp: [Điểm A] [Điểm B] [Độ dài]</label>
+            <textarea id="bulk-edges" rows="8" placeholder="Vd: A B 5..." style="width: 264px; height: 148px;">A B 5&#10;B C 7&#10;C D 4</textarea>
+            <div style="display: flex; gap: 6px; margin-top: 8px;">
+              <button id="bulk-add-btn" class="btn active" title="Thêm đường đi vào mạng lưới" style="flex: 1; justify-content: center; padding: 8px;">
+                ➕ Thêm Data
+              </button>
+              <button id="load-sample" class="btn ghost" title="Tải Cấu trúc Ví dụ Mẫu" style="padding: 8px; width: 40px; justify-content: center;">
+                📋
+              </button>
+              <button id="clear-graph" class="btn danger" title="Xóa toàn bộ Dữ liệu" style="padding: 8px; width: 40px; justify-content: center;">
+                🗑
+              </button>
+            </div>
+          </div>
+
+          <div class="edge-list">
+            <div class="list-header">
+              <span>ID</span>
+              <span>Từ</span>
+              <span>Đến</span>
+              <span>Km</span>
+            </div>
+            <div id="edge-table-body" class="list-body"></div>
+          </div>
+        </div>
+
+        <div class="panel-block">
+          <h3>2. Phân tích & Tính toán</h3>
+          <div class="form-row">
+            <label for="start-node">Vị trí Trạm xe (Điểm xuất phát)</label>
+            <select id="start-node"></select>
+          </div>
+          <div class="form-row checkbox-row">
+            <input type="checkbox" id="return-start" checked />
+            <label for="return-start">Bắt buộc quay lại Trạm sau khi quét</label>
+          </div>
+
+          <div class="panel-buttons">
+            <button id="analyze-btn" class="btn secondary">
+              🔍 Phân tích Euler
+            </button>
+            <button id="compute-route-btn" class="btn primary">
+              ⚙️ Tính Lộ Trình Tối Ưu
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL GIỮA: BẢN ĐỒ RADAR & ĐIỀU KHIỂN -->
+      <section class="panel panel-center">
+        <!-- Chuyển đổi định dạng mô phỏng -->
+        <div class="panel-header" style="position: relative; display: flex; flex-direction: row; justify-content: space-between; align-items: center; width: 100%; z-index: 2000; padding: 12px 16px 8px 16px;">
+          <h2 style="margin: 0; pointer-events: auto; font-size: 14px;">📡 KHU VỰC MÔ PHỎNG</h2>
+          <div style="display: flex; gap: 6px; align-items: center; pointer-events: auto;">
+            <!-- Nút thu phóng biểu đồ -->
+            <div style="display: flex; gap: 3px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 3px;">
+              <button id="zoom-in-btn" class="btn ghost" title="Phóng to biểu đồ" style="padding: 4px 8px; width: 30px; justify-content:center; font-size:15px;">+</button>
+              <button id="zoom-reset-btn" class="btn ghost" title="Đặt lại tỷ lệ" style="padding: 4px 6px; width: 30px; justify-content:center; font-size:11px;">1:1</button>
+              <button id="zoom-out-btn" class="btn ghost" title="Thu nhỏ biểu đồ" style="padding: 4px 8px; width: 30px; justify-content:center; font-size:16px;">-</button>
+            </div>
+            <!-- Nút bật/tắt chế độ kéo thả -->
+            <button id="pan-toggle-btn" class="btn ghost" title="Bật/tắt chế độ kéo thả (drag)" style="padding: 4px 8px; width: 34px; justify-content:center; font-size:16px;">🔒</button>
+            <!-- Nút toàn màn hình -->
+            <button id="fullscreen-btn" class="btn ghost" title="Phóng to toàn màn hình" style="padding: 4px 8px; width: 34px; justify-content:center; font-size:16px;">⛶</button>
+            <!-- Chế độ xem -->
+            <div class="view-mode-toggle" style="display: flex; gap: 6px;">
+              <button id="mode-abstract-btn" class="btn active" style="font-size:12px; padding: 5px 10px;">Biểu đồ</button>
+              <button id="mode-map-btn" class="btn secondary" style="font-size:12px; padding: 5px 10px;">Bản đồ GPS</button>
+            </div>
+          </div>
+        </div>
+        
+        <div id="simulation-area" style="position:relative; width:100%; flex:1; border-top: 1px solid rgba(255,255,255,0.05);">
+
+          <!-- Lớp Biểu đồ thường (Abstract SVG) -->
+          <div id="abstract-container" style="position: absolute; width: 100%; height: 100%; top:0; left:0; display: block; overflow: hidden; background: #020617;">
+            <svg id="graph-svg" style="width: 100%; height: 100%;"></svg>
+            <div id="sweeper-icon-svg" class="sweeper-hud-icon" style="position: absolute; width:34px; height:34px; transform:translate(-50%,-50%); opacity:0; z-index: 100; transition: left 0.1s linear, top 0.1s linear;">🚛</div>
+          </div>
+
+          <!-- Lớp Bản đồ thực (Leaflet) -->
+          <div id="map-container" style="position: absolute; width: 100%; height: 100%; top:0; left:0; display: none;"></div>
+          
+          <div id="graph-empty-hint" style="position: absolute; inset:0; z-index: 3000; pointer-events:none; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+            <div style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); padding: 15px 30px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.8); text-align: center;">
+              <p style="color:#fff; font-size:14px; font-weight:600; margin:0; margin-bottom:6px;">Chưa có tuyến đường nào</p>
+              <p style="color:var(--text-muted); font-size:12px; margin:0;">Nhập dữ liệu ở cột trái hoặc bấm "Tải ví dụ mẫu"</p>
+            </div>
+          </div>
+
+          <!-- Nút ? và bảng phím tắt nổi — TRÊN CÙNG, luôn hiển thị -->
+          <div id="fs-shortcuts-wrap" style="position:absolute; top:10px; right:12px; z-index:9000; display:block;">
+            <button id="fs-shortcuts-btn" class="btn ghost" title="Xem phím tắt" style="width:32px; height:32px; padding:0; justify-content:center; font-size:15px; border-radius:50%; font-weight:700; backdrop-filter:blur(8px); background:rgba(15,23,42,0.8);">?</button>
+            <div id="fs-shortcuts-panel" style="display:none; position:absolute; right:0; top:40px; width:260px; background:rgba(15,23,42,0.98); border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:14px; z-index:9001; box-shadow:0 20px 60px rgba(0,0,0,0.9);">
+              <h4 style="color:#fff; margin:0 0 10px 0; font-size:12px; letter-spacing:1px; text-transform:uppercase;">⌨️ Phím tắt</h4>
+              <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                <tbody>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>Space</kbd></td><td style="padding:3px 6px; color:#fff;">Play / Pause</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>R</kbd></td><td style="padding:3px 6px; color:#fff;">Reset mô phỏng</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>Enter</kbd></td><td style="padding:3px 6px; color:#fff;">Tính Lộ Trình</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>E</kbd></td><td style="padding:3px 6px; color:#fff;">Phân tích Euler</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>I</kbd></td><td style="padding:3px 6px; color:#fff;">Báo cáo chi tiết</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>F</kbd></td><td style="padding:3px 6px; color:#fff;">Thoát toàn màn hình</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd></td><td style="padding:3px 6px; color:#fff;">Zoom</td></tr>
+                  <tr><td style="padding:3px 0; color:var(--text-muted);"><kbd>Esc</kbd></td><td style="padding:3px 6px; color:#fff;">Đóng / Thoát</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- BẢNG HUD ĐIỀU KHIỂN CHẠY MÔ PHỎNG NỔI BÊN TRONG MAP -->
+        <div class="simulation-hud">
+          <div class="sim-controls-row">
+            <button id="play-btn" class="btn primary sim-main-btn">
+              ▶ BẮT ĐẦU QUÉT
+            </button>
+            <button id="pause-btn" class="btn secondary">⏸ Tạm dừng</button>
+            <button id="reset-btn" class="btn ghost">⟲ Hủy lịch</button>
+            <button id="info-btn" class="btn ghost" title="Xem báo cáo chi tiết lộ trình" style="padding: 8px; width: 40px; justify-content: center; font-size: 18px;">ℹ️</button>
+          </div>
+          
+          <div class="sim-speed-row">
+            <label for="speed-range">Vận tốc: <span id="speed-label">1x</span></label>
+            <input id="speed-range" type="range" min="0.1" max="1.5" step="0.05" value="0.4" />
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-info">
+              <span>Tiến độ hoàn thành: <span id="progress-percent">0%</span></span>
+              <span id="progress-distance">0 / 0 km</span>
+            </div>
+            <div class="progress-bar">
+              <div id="progress-fill" class="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PANEL PHẢI: PHÂN TÍCH KPI & BÁO CÁO -->
+      <section class="panel panel-right">
+        <h2>📊 KPI & BÁO CÁO MÔI TRƯỜNG</h2>
+
+        <div class="panel-block">
+          <h3>Tổng quan Hệ thống</h3>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Số giao lộ</span>
+              <span id="stat-nodes" class="stat-value">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Số cung đường</span>
+              <span id="stat-edges" class="stat-value">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Km Thực tế</span>
+              <span id="stat-length-original" class="stat-value">0</span>
+            </div>
+            <div class="stat-card highlight-card">
+              <span class="stat-label">Km Thực chạy</span>
+              <span id="stat-length-optimized" class="stat-value highlight">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-block live-kpi" id="kpi-board">
+          <h3>Chỉ số Tiêu thụ (Thời gian thực)</h3>
+          <div class="stats-grid">
+            <div class="stat-card warning-card">
+              <span class="stat-label">Nhiên liệu (Lít)</span>
+              <span id="stat-fuel" class="stat-value text-warning">0.0</span>
+            </div>
+            <div class="stat-card success-card">
+              <span class="stat-label">Khí Xả CO2 (kg)</span>
+              <span id="stat-co2" class="stat-value text-success">0.0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-block">
+          <h3>Kết quả & Giải thích thuật toán</h3>
+          <div id="algo-explanation" style="padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+            Chưa có tuyến đường nào được phân tích.
+          </div>
+        </div>
+
+        <div class="panel-block">
+          <h3>Đánh giá Toán học</h3>
+          <div id="euler-status" class="euler-status unknown">
+            Chờ phân tích mạng lưới
+          </div>
+          <div class="odd-nodes">
+            <h4>Giao lộ phức tạp (Bậc lẻ):</h4>
+            <ul id="odd-nodes-list"></ul>
+          </div>
+        </div>
+
+        <div class="panel-block">
+          <h3>📑 Lịch trình chi tiết & Xuất dữ liệu</h3>
+          <ol id="route-steps" class="route-steps"></ol>
+          <button id="export-btn" class="btn active" style="width: 100%; margin-top: 10px;">
+            📥 Xuất Báo cáo Excel/CSV
+          </button>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal Chi Tiết Lộ Trình (Pre-flight Briefing) -->
+  <div id="details-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📄 BÁO CÁO CHI TIẾT LỘ TRÌNH TỐI ƯU</h3>
+        <button id="close-modal-btn" class="btn ghost" style="padding: 4px 8px;">❌</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-summary" style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px; font-family: 'Inter', sans-serif;">
+          <!-- JS Insert -->
+        </div>
+        
+        <h4 style="color: var(--text-muted); margin-bottom: 8px;">Đoạn đường cần quét lặp lại (Penalty Điểm trừ):</h4>
+        <ul id="modal-dup-list" style="color: var(--warning); margin-bottom: 15px; background: rgba(245, 158, 11, 0.1); padding: 10px 10px 10px 30px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 13px;"></ul>
+        
+        <h4 style="color: var(--text-muted); margin-bottom: 8px;">Lịch trình di chuyển chi tiết (Step-by-step):</h4>
+        <div style="max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.4); padding: 12px 12px 12px 30px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+           <ol id="modal-route-steps" style="margin: 0; padding: 0;"></ol>
+        </div>
+      </div>
+      <div class="modal-footer" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="modal-export-btn" class="btn secondary">📥 Xuất file CSV</button>
+        <button id="modal-start-btn" class="btn primary">▶ BẮT ĐẦU QUÉT NGAY</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
