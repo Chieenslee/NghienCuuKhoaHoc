@@ -355,6 +355,7 @@ function renderGraphAbstract() {
     line.setAttribute("x2", p2.x * w); line.setAttribute("y2", p2.y * h);
     line.setAttribute("stroke", "rgba(239,68,68,0.5)"); line.setAttribute("stroke-width", "5");
     line.setAttribute("stroke-dasharray", "8,6"); line.dataset.edgeId = e.id;
+    line.classList.add("virtual-edge");
     g.appendChild(line);
   });
 
@@ -383,9 +384,27 @@ function updateEdgeStylesAbstract(progressIndex) {
 
   Array.from(svg.querySelectorAll("line[data-edge-id]")).forEach(line => {
     const id = line.dataset.edgeId;
-    if(id === curId) { line.setAttribute("stroke", "#f59e0b"); line.setAttribute("stroke-width", "6"); }
-    else if(doneSet.has(id)) { line.setAttribute("stroke", "#10b981"); line.setAttribute("stroke-width", "4"); }
-    else { line.setAttribute("stroke", "rgba(56, 189, 248, 0.4)"); line.setAttribute("stroke-width", "4"); }
+    const isVirtual = line.classList.contains("virtual-edge");
+    
+    if(id === curId) { 
+        line.setAttribute("stroke", "#f59e0b"); line.setAttribute("stroke-width", "6"); 
+    } else if(doneSet.has(id)) { 
+        if(isVirtual) { 
+            line.setAttribute("stroke", "rgba(239, 68, 68, 0.9)"); 
+            line.setAttribute("stroke-width", "5"); 
+        } else { 
+            line.setAttribute("stroke", "#10b981"); 
+            line.setAttribute("stroke-width", "4"); 
+        }
+    } else { 
+        if(isVirtual) { 
+            line.setAttribute("stroke", "rgba(239, 68, 68, 0.4)"); 
+            line.setAttribute("stroke-width", "5"); 
+        } else { 
+            line.setAttribute("stroke", "rgba(56, 189, 248, 0.4)"); 
+            line.setAttribute("stroke-width", "4"); 
+        }
+    }
   });
 }
 
