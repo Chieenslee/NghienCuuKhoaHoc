@@ -747,13 +747,17 @@ function refreshUI() {
   }
 
   const el = elements.eulerStatus;
-  el.className = `euler-status ${state.eulerType}`;
+  // Dùng class 'disconnected' riêng khi không liên thông để CSS hiển thị màu đỏ rõ hơn
+  const statusClass = !state.nodes.size ? 'unknown'
+    : !state.isConnected ? 'disconnected'
+    : state.eulerType;
+  el.className = `euler-status ${statusClass}`;
   let text = "Chưa nhận diện";
   if (!state.nodes.size) text = "Chưa có dữ liệu";
-  else if (!state.isConnected) text = "Lỗi kết nối toàn trình";
-  else if (state.eulerType === 'eulerian') text = 'Eulerian (Tối ưu 100%)';
-  else if (state.eulerType === 'semi') text = 'Semi-Eulerian (Tốt)';
-  else text = `Non-Eulerian (Phải lặp ${state.oddNodes.length} đỉnh)`;
+  else if (!state.isConnected) text = "⚠️ Lỗi: Đồ thị KHÔNG LIÊN THÔNG";
+  else if (state.eulerType === 'eulerian') text = '✅ Eulerian (Tối ưu 100%)';
+  else if (state.eulerType === 'semi') text = '⚡ Semi-Eulerian (Tốt)';
+  else text = `⚠️ Non-Eulerian (Phải lặp ${state.oddNodes.length} đỉnh)`;
   el.textContent = text;
 
   elements.oddNodesList.innerHTML = "";
@@ -857,16 +861,43 @@ function openDetailsModal() {
 function onComputeRoute() {
   const start = elements.startNode.value || Array.from(state.nodes)[0];
   if(!start) return;
-  
+
   // Gán ngược lại vào ComboBox để giao diện hiển thị rõ Điểm xuất phát nào đã được hệ thống chọn mặc định
   elements.startNode.value = start;
-  
+
+  // === KIỂM TRA LIÊN THÔNG TRƯỚC KHI TÍNH ===
+  analyzeEuler(); // chạy phân tích để cập nhật state.isConnected
+
+  if (!state.isConnected) {
+    // Cập nhật UI để thể hiện lỗi ngay trên màn hình
+    refreshUI();
+    logStatus("⚠️ Lỗi: Đồ thị không liên thông! Không thể tính lộ trình.");
+
+    // Hiện modal lỗi rõ ràng
+    elements.modalSummary.innerHTML = `
+      <div style="text-align:center; padding: 14px 0 6px 0;">
+        <div style="font-size:48px; margin-bottom:12px;">🚫</div>
+        <div style="font-size:16px; font-weight:700; color:#ef4444; margin-bottom:10px;">Lỗi: Đồ thị Không Liên Thông!</div>
+        <div style="color:var(--text-muted); font-size:13px; line-height:1.7; text-align:left; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:12px 16px;">
+          Mạng lưới đường phố hiện tại bị <strong style="color:#f87171;">tách thành nhiều vùng riêng biệt</strong> — xe quét không thể đi từ vùng này sang vùng kia.<br/><br/>
+          <strong style="color:#fff;">👉 Cách khắc phục:</strong><br/>
+          • Kiểm tra xem có đỉnh nào bị cô lập không<br/>
+          • Thêm ít nhất một cạnh nối giữa các nhóm đỉnh<br/>
+          • Hoặc bấm <strong style="color:var(--accent)">Tải ví dụ mẫu</strong> để dùng dữ liệu hợp lệ
+        </div>
+      </div>`;
+    elements.modalDupList.innerHTML = `<li style="color:#ef4444;">❌ Không thể tính lộ trình trên đồ thị không liên thông.</li>`;
+    elements.modalRouteSteps.innerHTML = "";
+    elements.detailsModal.style.display = "flex";
+    return; // Dừng — không tính tiếp
+  }
+
   computeChinesePostman(start);
-  refreshUI(); 
+  refreshUI();
   if(state.viewMode==='map') renderGraphMap(); // redrawn dashed lines dup
   else renderGraphAbstract();
-  resetSimulation(); logStatus("Tính lộ trình tối ưu thành công.");
-  
+  resetSimulation(); logStatus("✅ Tính lộ trình tối ưu thành công.");
+
   // Mở thẳng modal không hỏi confirm()
   setTimeout(() => openDetailsModal(), 300);
 }
